@@ -79,11 +79,13 @@ import static org.apache.flink.table.descriptors.ElasticsearchValidator.CONNECTO
 import static org.apache.flink.table.descriptors.ElasticsearchValidator.CONNECTOR_KEY_DELIMITER;
 import static org.apache.flink.table.descriptors.ElasticsearchValidator.CONNECTOR_KEY_NULL_LITERAL;
 import static org.apache.flink.table.descriptors.ElasticsearchValidator.CONNECTOR_TYPE_VALUE_ELASTICSEARCH;
+import static org.apache.flink.table.descriptors.ElasticsearchValidator.validateAndParseHostsString;
 import static org.apache.flink.table.descriptors.FormatDescriptorValidator.FORMAT;
 import static org.apache.flink.table.descriptors.FormatDescriptorValidator.FORMAT_TYPE;
-import static org.apache.flink.table.descriptors.SchemaValidator.SCHEMA;
-import static org.apache.flink.table.descriptors.SchemaValidator.SCHEMA_NAME;
-import static org.apache.flink.table.descriptors.SchemaValidator.SCHEMA_TYPE;
+import static org.apache.flink.table.descriptors.Schema.SCHEMA;
+import static org.apache.flink.table.descriptors.Schema.SCHEMA_DATA_TYPE;
+import static org.apache.flink.table.descriptors.Schema.SCHEMA_NAME;
+import static org.apache.flink.table.descriptors.Schema.SCHEMA_TYPE;
 import static org.apache.flink.table.descriptors.StreamTableDescriptorValidator.UPDATE_MODE;
 import static org.apache.flink.table.descriptors.StreamTableDescriptorValidator.UPDATE_MODE_VALUE_APPEND;
 
@@ -116,6 +118,7 @@ public abstract class ElasticsearchUpsertTableSinkFactoryBase implements StreamT
 		properties.add(UPDATE_MODE);
 
 		// Elasticsearch
+		properties.add(CONNECTOR_HOSTS);
 		properties.add(CONNECTOR_HOSTS + ".#." + CONNECTOR_HOSTS_HOSTNAME);
 		properties.add(CONNECTOR_HOSTS + ".#." + CONNECTOR_HOSTS_PORT);
 		properties.add(CONNECTOR_HOSTS + ".#." + CONNECTOR_HOSTS_PROTOCOL);
@@ -136,8 +139,9 @@ public abstract class ElasticsearchUpsertTableSinkFactoryBase implements StreamT
 		properties.add(CONNECTOR_CONNECTION_PATH_PREFIX);
 
 		// schema
-		properties.add(SCHEMA() + ".#." + SCHEMA_TYPE());
-		properties.add(SCHEMA() + ".#." + SCHEMA_NAME());
+		properties.add(SCHEMA + ".#." + SCHEMA_DATA_TYPE);
+		properties.add(SCHEMA + ".#." + SCHEMA_TYPE);
+		properties.add(SCHEMA + ".#." + SCHEMA_NAME);
 
 		// format wildcard
 		properties.add(FORMAT + ".*");
@@ -151,7 +155,7 @@ public abstract class ElasticsearchUpsertTableSinkFactoryBase implements StreamT
 
 		return createElasticsearchUpsertTableSink(
 			descriptorProperties.isValue(UPDATE_MODE, UPDATE_MODE_VALUE_APPEND),
-			descriptorProperties.getTableSchema(SCHEMA()),
+			descriptorProperties.getTableSchema(SCHEMA),
 			getHosts(descriptorProperties),
 			descriptorProperties.getString(CONNECTOR_INDEX),
 			descriptorProperties.getString(CONNECTOR_DOCUMENT_TYPE),
@@ -198,15 +202,19 @@ public abstract class ElasticsearchUpsertTableSinkFactoryBase implements StreamT
 	}
 
 	private List<Host> getHosts(DescriptorProperties descriptorProperties) {
-		final List<Map<String, String>> hosts = descriptorProperties.getFixedIndexedProperties(
-			CONNECTOR_HOSTS,
-			Arrays.asList(CONNECTOR_HOSTS_HOSTNAME, CONNECTOR_HOSTS_PORT, CONNECTOR_HOSTS_PROTOCOL));
-		return hosts.stream()
-			.map(host -> new Host(
-				descriptorProperties.getString(host.get(CONNECTOR_HOSTS_HOSTNAME)),
-				descriptorProperties.getInt(host.get(CONNECTOR_HOSTS_PORT)),
-				descriptorProperties.getString(host.get(CONNECTOR_HOSTS_PROTOCOL))))
-			.collect(Collectors.toList());
+		if (descriptorProperties.containsKey(CONNECTOR_HOSTS)) {
+			return validateAndParseHostsString(descriptorProperties);
+		} else {
+			final List<Map<String, String>> hosts = descriptorProperties.getFixedIndexedProperties(
+				CONNECTOR_HOSTS,
+				Arrays.asList(CONNECTOR_HOSTS_HOSTNAME, CONNECTOR_HOSTS_PORT, CONNECTOR_HOSTS_PROTOCOL));
+			return hosts.stream()
+				.map(host -> new Host(
+					descriptorProperties.getString(host.get(CONNECTOR_HOSTS_HOSTNAME)),
+					descriptorProperties.getInt(host.get(CONNECTOR_HOSTS_PORT)),
+					descriptorProperties.getString(host.get(CONNECTOR_HOSTS_PROTOCOL))))
+				.collect(Collectors.toList());
+		}
 	}
 
 	private SerializationSchema<Row> getSerializationSchema(Map<String, String> properties) {

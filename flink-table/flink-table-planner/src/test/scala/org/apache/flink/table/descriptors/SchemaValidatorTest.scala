@@ -19,8 +19,7 @@
 package org.apache.flink.table.descriptors
 
 import java.util.Optional
-
-import org.apache.flink.table.api.{TableException, TableSchema, Types}
+import org.apache.flink.table.api.{DataTypes, TableException, TableSchema, Types}
 import org.apache.flink.table.descriptors.RowtimeTest.CustomExtractor
 import org.apache.flink.table.sources.tsextractors.{ExistingField, StreamRecordTimestamp}
 import org.apache.flink.table.sources.wmstrategies.{BoundedOutOfOrderTimestamps, PreserveWatermarks}
@@ -36,12 +35,12 @@ class SchemaValidatorTest {
 
   @Test
   def testSchemaWithRowtimeFromSource(): Unit = {
-     val desc1 = Schema()
+     val desc1 = new Schema()
       .field("otherField", Types.STRING).from("csvField")
       .field("abcField", Types.STRING)
       .field("p", Types.SQL_TIMESTAMP).proctime()
       .field("r", Types.SQL_TIMESTAMP).rowtime(
-        Rowtime().timestampsFromSource().watermarksFromSource())
+       new Rowtime().timestampsFromSource().watermarksFromSource())
     val props = new DescriptorProperties()
     props.putProperties(desc1.toProperties)
 
@@ -73,12 +72,12 @@ class SchemaValidatorTest {
 
   @Test(expected = classOf[TableException])
   def testDeriveTableSinkSchemaWithRowtimeFromSource(): Unit = {
-    val desc1 = Schema()
+    val desc1 = new Schema()
       .field("otherField", Types.STRING).from("csvField")
       .field("abcField", Types.STRING)
       .field("p", Types.SQL_TIMESTAMP).proctime()
       .field("r", Types.SQL_TIMESTAMP).rowtime(
-        Rowtime().timestampsFromSource().watermarksFromSource())
+      new Rowtime().timestampsFromSource().watermarksFromSource())
     val props = new DescriptorProperties()
     props.putProperties(desc1.toProperties)
 
@@ -87,19 +86,21 @@ class SchemaValidatorTest {
 
   @Test
   def testDeriveTableSinkSchemaWithRowtimeFromField(): Unit = {
-    val desc1 = Schema()
-      .field("otherField", Types.STRING).from("csvField")
-      .field("abcField", Types.STRING)
-      .field("p", Types.SQL_TIMESTAMP).proctime()
-      .field("r", Types.SQL_TIMESTAMP).rowtime(
-        Rowtime().timestampsFromField("myTime").watermarksFromSource())
+    // we have to use DataTypes here because TypeInformation -> properties -> DataType
+    // loses information (conversion class)
+    val desc1 = new Schema()
+      .field("otherField", DataTypes.STRING()).from("csvField")
+      .field("abcField", DataTypes.STRING())
+      .field("p", DataTypes.TIMESTAMP(3)).proctime()
+      .field("r", DataTypes.TIMESTAMP(3)).rowtime(
+      new Rowtime().timestampsFromField("myTime").watermarksFromSource())
     val props = new DescriptorProperties()
     props.putProperties(desc1.toProperties)
 
     val expectedTableSinkSchema = TableSchema.builder()
-      .field("csvField", Types.STRING) // aliased
-      .field("abcField", Types.STRING)
-      .field("myTime", Types.SQL_TIMESTAMP)
+      .field("csvField", DataTypes.STRING()) // aliased
+      .field("abcField", DataTypes.STRING())
+      .field("myTime", DataTypes.TIMESTAMP(3))
       .build()
 
     assertEquals(expectedTableSinkSchema, SchemaValidator.deriveTableSinkSchema(props))
@@ -107,12 +108,12 @@ class SchemaValidatorTest {
 
   @Test
   def testSchemaWithRowtimeFromField(): Unit = {
-     val desc1 = Schema()
+     val desc1 = new Schema()
       .field("otherField", Types.STRING).from("csvField")
       .field("abcField", Types.STRING)
       .field("p", Types.SQL_TIMESTAMP).proctime()
       .field("r", Types.SQL_TIMESTAMP).rowtime(
-        Rowtime().timestampsFromField("myTime").watermarksFromSource())
+       new Rowtime().timestampsFromField("myTime").watermarksFromSource())
     val props = new DescriptorProperties()
     props.putProperties(desc1.toProperties)
 
@@ -146,12 +147,12 @@ class SchemaValidatorTest {
 
   @Test
   def testSchemaWithRowtimeCustomTimestampExtractor(): Unit = {
-    val descriptor = Schema()
+    val descriptor = new Schema()
       .field("f1", Types.STRING)
       .field("f2", Types.STRING)
       .field("f3", Types.SQL_TIMESTAMP)
       .field("rt", Types.SQL_TIMESTAMP).rowtime(
-        Rowtime().timestampsFromExtractor(new CustomExtractor("f3"))
+      new Rowtime().timestampsFromExtractor(new CustomExtractor("f3"))
           .watermarksPeriodicBounded(1000L))
     val properties = new DescriptorProperties()
     properties.putProperties(descriptor.toProperties)
